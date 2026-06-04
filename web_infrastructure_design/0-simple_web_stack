@@ -1,0 +1,69 @@
+# 0. Simple web stack
+
+## Diagram
+[Link to diagram](https://drive.google.com/file/d/1jHcWu-CXqC-aN-0geDObhwhmJoxuhYPu/view?usp=sharing)
+
+## Infrastructure explanation
+
+### What is a server?
+A server is a computer (physical or virtual) that provides data or services
+to other computers called clients. A server runs an operating system (OS)
+such as Linux. Servers are generally located in data centers, which are
+secured and climate-controlled facilities with stable power supply and
+high-speed network connections.
+
+### What is the role of the domain name?
+The domain name (foobar.com) is a human-readable alias that the DNS
+translates into an IP address (8.8.8.8), so that machines can find each
+other on the network.
+
+### What type of DNS record is `www` in `www.foobar.com`?
+`www.foobar.com` uses a DNS **A record**. An A record maps a domain name
+directly to an IPv4 address. In this case, `www.foobar.com` resolves to
+the IP address `8.8.8.8`.
+
+### What is the role of the web server (Nginx)?
+The web server (Nginx) receives incoming HTTP/HTTPS requests from the user's
+browser and serves static content (HTML files, CSS, images). For dynamic
+requests, it forwards them to the application server. The server communicates
+with the user's computer over a network using the TCP/IP protocol.
+
+### What is the role of the application server?
+The application server executes the business logic and computes dynamic
+content. It processes the requests forwarded by the web server, interacts
+with the database if needed, and returns the generated HTML page back to
+the web server.
+
+### What is the role of the code base?
+The code base contains all the application files (the source code). The
+application server reads and executes these files to generate the dynamic
+content.
+
+### What is the role of the database (MySQL)?
+The database stores and organizes the application data (users, posts,
+orders, etc.). The application server sends SQL queries to retrieve or
+update data, and the database returns the results.
+
+### How does the server communicate with the user?
+The server communicates with the user's computer over a network using the
+**TCP/IP** protocol. The user's browser sends HTTP requests and the server
+returns HTTP responses.
+
+## Issues with this infrastructure
+
+### SPOF (Single Point of Failure)
+This infrastructure has a single server. If that server crashes or becomes
+unavailable, the entire website goes down. Nothing is redundant: there is
+no backup server, no failover mechanism.
+
+### Downtime when maintenance is needed
+When new code is deployed, the web server (Nginx) needs to be restarted.
+During that restart, the website is temporarily unavailable. Any maintenance
+operation on the single server causes downtime for the users.
+
+### Cannot scale if too much incoming traffic
+This infrastructure relies on a single server with fixed resources (CPU,
+RAM). If the traffic exceeds the server's capacity (QPS ceiling), the server
+will be overloaded and will not be able to handle all the requests. There is
+no load balancer and no way to add servers dynamically to absorb traffic
+spikes.

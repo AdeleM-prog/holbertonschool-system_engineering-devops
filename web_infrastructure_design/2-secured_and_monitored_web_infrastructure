@@ -1,0 +1,104 @@
+# 2. Secured and monitored web infrastructure
+
+## Diagram
+[Link to diagram](https://imgur.com/YOUR_LINK_HERE)
+
+## Why each additional element was added
+
+**3 firewalls:** Added to filter network traffic in and out of each
+machine. Firewall 1 sits in front of the load balancer and blocks
+unauthorized incoming internet traffic. Firewalls 2 and 3 protect each
+server and only allow traffic coming from the load balancer on the
+expected ports.
+
+**1 SSL certificate:** Added to serve www.foobar.com over HTTPS. If
+someone intercepts the traffic between the user and the load balancer,
+the data is encrypted and cannot be read. This protects passwords,
+session tokens, and all sensitive data in transit.
+
+**3 monitoring clients:** Added to collect data from each machine (load
+balancer + 2 servers) and send it to a monitoring service (Sumologic).
+This allows the team to detect problems, measure performance, and trigger
+alerts automatically.
+
+## What firewalls are for
+
+A firewall filters network traffic going in and out of a machine. It
+applies a set of rules to decide which connections are allowed and which
+are blocked. For example, it can block all traffic except HTTPS on port
+443 from the internet, and only allow the load balancer to talk to the
+web servers on port 80 internally.
+
+## Why traffic is served over HTTPS
+
+HTTPS encrypts the traffic between the user's browser and the server
+using SSL/TLS. If someone intercepts the connection (man-in-the-middle
+attack), they only see encrypted data that they cannot read. Without
+HTTPS, passwords, personal data, and session tokens travel in plain text
+and can be stolen.
+
+## What monitoring is used for
+
+Monitoring is used to check if something is broken or slow. It watches
+server health metrics (CPU usage, RAM, disk space, response time, error
+rate) and triggers alerts when something goes out of normal range. It
+allows the team to detect and fix problems before users notice them.
+
+## How the monitoring tool collects data
+
+The monitoring setup is composed of a lightweight agent (client) installed
+on each server. This agent continuously collects data from the machine
+(system metrics, application logs, request counts) and sends it to the
+monitoring service (Sumologic) over the network. Sumologic stores,
+visualizes, and analyzes this data and can trigger alerts based on
+configured thresholds.
+
+## How to monitor web server QPS (Queries Per Second)
+
+To monitor QPS on the Nginx web server, configure the monitoring agent to
+read and parse the Nginx access logs or to collect the Nginx stub status
+metrics (using ngx_http_stub_status_module). The agent sends the request
+count per second to Sumologic. In Sumologic, create a dashboard with a
+QPS metric and set up an alert that triggers if QPS exceeds a defined
+threshold, indicating abnormal traffic or a potential attack.
+
+## Issues with this infrastructure
+
+### SSL termination at the load balancer level
+
+SSL is terminated at the load balancer. This means the load balancer
+decrypts the traffic and forwards it to the web servers in plain HTTP.
+The traffic between the load balancer and the web servers is unencrypted.
+If an attacker gains access to the internal network, they can read all
+the traffic between the load balancer and the servers. To fix this, SSL
+should also be used between the load balancer and the web servers
+(end-to-end encryption).
+
+The load balancer is also still a single point of failure. If it goes
+down, the entire website becomes unreachable.
+
+### Only one MySQL server capable of accepting writes
+
+Only the Primary MySQL node accepts write operations. If the Primary goes
+down, the application cannot write to the database anymore (no new users,
+no new orders, no updates) until the Primary is restored or the Replica
+is manually promoted to Primary. This is a critical availability risk for
+any write-heavy application.
+
+### Servers with all the same components
+
+Having servers where each one contains a database, a web server, and an
+application server together creates two problems.
+
+First, each component has a different resource consumption pattern. The
+database might need more memory and disk while the application server
+needs more CPU. Mixing them on the same machine means they compete for
+resources and cannot be scaled independently. We might need more database
+servers than application servers, but this architecture does not allow
+that.
+
+Second, when maintenance is needed on one component (for example,
+restarting Nginx to deploy new code), it affects all other components
+running on the same server (the application server and the database both
+become temporarily unreachable). Separating components onto dedicated
+servers would allow independent maintenance without collateral impact.

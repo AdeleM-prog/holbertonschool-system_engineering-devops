@@ -1,0 +1,93 @@
+# 1. Distributed web infrastructure
+
+## Diagram
+[Link to diagram](https://drive.google.com/file/d/1PyDo7ZvO92OAwN9hnO2f-cNjQRsqyN2n/view?usp=sharing)
+
+## Why each additional element was added
+
+**Second server:** Added to create redundancy. If one server goes down,
+the other continues to handle requests. Both servers contain the same
+stack: a web server (Nginx), an application server, a code base, and a
+MySQL database. This eliminates the single server bottleneck from the
+previous infrastructure.
+
+**Load balancer (HAProxy):** Added to distribute incoming traffic between
+the two servers. Without it, there would be no way to split the load or
+route requests to a healthy server if one goes down.
+
+**MySQL Primary-Replica cluster:** Added to separate read and write
+operations, improve performance, and provide a database backup mechanism.
+The Primary handles all writes; the Replica stays synchronized and
+handles reads.
+
+## Load balancer configuration
+
+The load balancer is configured with a **Round Robin** algorithm. Each
+incoming request is sent to the next server in rotation: request 1 goes
+to Server 1, request 2 goes to Server 2, request 3 goes to Server 1
+again, and so on. This ensures an even distribution of traffic when both
+servers have similar capacity.
+
+## Active-Active vs Active-Passive
+
+This setup uses an **Active-Active** configuration. Both servers are
+running simultaneously and both handle traffic at the same time. The load
+balancer splits requests between them.
+
+In an **Active-Passive** setup, only one server handles traffic at a
+time. The second server stays idle and only activates if the first one
+fails. Active-Active makes better use of available resources but requires
+both servers to stay in sync. Active-Passive is simpler to manage but
+wastes half the infrastructure capacity during normal operation.
+
+## How a Primary-Replica (Master-Slave) database cluster works
+
+The **Primary node** is the only node that accepts both read and write
+operations (INSERT, UPDATE, DELETE, SELECT). Every change made on the
+Primary is automatically replicated to the **Replica node** using MySQL
+binary logs. The Replica applies these changes to stay synchronized with
+the Primary in near real-time.
+
+The **Replica node** is read-only. It cannot accept write operations. Its
+role is to serve read queries and to act as a backup in case the Primary
+fails. If the Primary goes down, the Replica can be manually or
+automatically promoted to become the new Primary.
+
+## Difference between Primary and Replica for the application
+
+The application sends all **write queries** (creating a user, placing an
+order, updating a record) to the **Primary node**. It sends **read
+queries** (loading a profile, browsing a product list) to the **Replica
+node**. This reduces the load on the Primary and improves overall
+database performance. If the Primary fails, write operations become
+impossible until it is restored or the Replica is promoted.
+
+## Issues with this infrastructure
+
+### SPOF (Single Points of Failure)
+
+The **load balancer** is a single point of failure. If HAProxy goes down,
+no request can reach either server and the entire website becomes
+unreachable. There is no redundant load balancer to take over.
+
+The **Primary database** is also a single point of failure for write
+operations. If it goes down, no data can be written to the database until
+it is restored or the Replica is promoted manually.
+
+### Security issues
+
+**No firewall:** all ports on all servers are exposed directly to the
+internet. An attacker can attempt to connect to the database port (3306),
+the application server, or any other service without any filtering.
+
+**No HTTPS:** traffic between the user and the load balancer is not
+encrypted. Passwords, session tokens, and sensitive user data travel in
+plain text and can be intercepted by a man-in-the-middle attack.
+
+### No monitoring
+
+There is no monitoring tool in place (no Datadog, no Nagios, no
+NewRelic, no Uptime Robot). If a server goes down, runs out of disk
+space, or has its CPU overloaded, no alert is triggered. Problems can go
+undetected for a long time, causing silent failures or data loss without
+anyone being notified.
